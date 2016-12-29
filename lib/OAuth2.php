@@ -5,6 +5,7 @@ namespace OAuth2;
 use OAuth2\Model\IOAuth2AccessToken;
 use OAuth2\Model\IOAuth2AuthCode;
 use OAuth2\Model\IOAuth2Client;
+use OAuth2\TokenGenerator\TokenGeneratorInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -60,6 +61,13 @@ class OAuth2
      * @var IOAuth2Storage
      */
     protected $storage;
+
+    /**
+     * Token Generator (Random, JWT, etc.)
+     *
+     * @var TokenGeneratorInterface
+     */
+    private $tokenGenerator;
 
     /**
      * Keep track of the old refresh token. So we can unset
@@ -403,6 +411,20 @@ class OAuth2
         foreach ($config as $name => $value) {
             $this->setVariable($name, $value);
         }
+    }
+
+    /**
+     * Sets a TokenGenerator to override default implementation.
+     *
+     * @param TokenGeneratorInterface $tokenGenerator
+     *
+     * @return OAuth2 The application (for chained calls of this method)
+     */
+    public function setTokenGenerator(TokenGeneratorInterface $tokenGenerator)
+    {
+        $this->tokenGenerator = $tokenGenerator;
+
+        return $this;
     }
 
     /**
@@ -1331,8 +1353,12 @@ class OAuth2
      */
     public function createAccessToken(IOAuth2Client $client, $data, $scope = null, $access_token_lifetime = null, $issue_refresh_token = true, $refresh_token_lifetime = null)
     {
+        $genAccessToken = $this->tokenGenerator
+            ? $this->tokenGenerator->genAccessToken($client, $data, $scope, $access_token_lifetime, $issue_refresh_token, $refresh_token_lifetime)
+            : $this->genAccessToken()
+        ;
         $token = array(
-            "access_token" => $this->genAccessToken(),
+            "access_token" => $genAccessToken,
             "expires_in" => ($access_token_lifetime ?: $this->getVariable(self::CONFIG_ACCESS_LIFETIME)),
             "token_type" => $this->getVariable(self::CONFIG_TOKEN_TYPE),
             "scope" => $scope,
@@ -1348,7 +1374,10 @@ class OAuth2
 
         // Issue a refresh token also, if we support them
         if ($this->storage instanceof IOAuth2RefreshTokens && $issue_refresh_token === true) {
-            $token["refresh_token"] = $this->genAccessToken();
+            $token["refresh_token"] = $this->tokenGenerator
+                ? $this->tokenGenerator->genRefreshToken($client, $data, $scope, $access_token_lifetime, $issue_refresh_token, $refresh_token_lifetime)
+                : $this->genAccessToken()
+            ;
             $this->storage->createRefreshToken(
                 $token["refresh_token"],
                 $client,
@@ -1390,7 +1419,10 @@ class OAuth2
      */
     private function createAuthCode(IOAuth2Client $client, $data, $redirectUri, $scope = null)
     {
-        $code = $this->genAuthCode();
+        $code = $this->tokenGenerator
+            ? $this->tokenGenerator->genAuthCode($client, $data, $scope, $redirectUri)
+            : $this->genAuthCode()
+        ;
         $this->storage->createAuthCode(
             $code,
             $client,
@@ -1413,6 +1445,8 @@ class OAuth2
      *
      * @ingroup oauth2_section_4
      * @see     OAuth2::genAuthCode()
+     *
+     * @deprecated since 1.3, will be removed in 2.0. Use a TokenGenerator instead.
      */
     protected function genAccessToken()
     {
@@ -1446,6 +1480,8 @@ class OAuth2
      * @see     OAuth2::genAccessToken()
      *
      * @ingroup oauth2_section_4
+     *
+     * @deprecated since 1.3, will be removed in 2.0. Use a TokenGenerator instead.
      */
     protected function genAuthCode()
     {
