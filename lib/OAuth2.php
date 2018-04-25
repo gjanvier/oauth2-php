@@ -1355,13 +1355,17 @@ class OAuth2
      */
     public function createAccessToken(IOAuth2Client $client, $data, $scope = null, $access_token_lifetime = null, $issue_refresh_token = true, $refresh_token_lifetime = null)
     {
+        if (null === $access_token_lifetime) {
+            $access_token_lifetime = $this->getVariable(self::CONFIG_ACCESS_LIFETIME);
+        }
+
         $genAccessToken = $this->tokenGenerator
             ? $this->tokenGenerator->genAccessToken($client, $data, $scope, $access_token_lifetime, $issue_refresh_token, $refresh_token_lifetime)
             : $this->genAccessToken()
         ;
         $token = array(
             "access_token" => $genAccessToken,
-            "expires_in" => ($access_token_lifetime ?: $this->getVariable(self::CONFIG_ACCESS_LIFETIME)),
+            "expires_in" => $access_token_lifetime,
             "token_type" => $this->getVariable(self::CONFIG_TOKEN_TYPE),
             "scope" => $scope,
         );
@@ -1370,7 +1374,7 @@ class OAuth2
             $token["access_token"],
             $client,
             $data,
-            time() + ($access_token_lifetime ?: $this->getVariable(self::CONFIG_ACCESS_LIFETIME)),
+            time() + $access_token_lifetime,
             $scope
         );
 
