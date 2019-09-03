@@ -534,7 +534,7 @@ class OAuth2
 
         // Check scope, if provided
         // If token doesn't have a scope, it's null/empty, or it's insufficient, then throw an error
-        if ($scope && (!$token->getScope() || !$this->checkScope($scope, $token->getScope()))) {
+        if ($scope && (!$token->getScope() || !$this->checkScope($scope))) {
             throw new OAuth2AuthenticateException(Response::HTTP_FORBIDDEN, $tokenType, $realm, self::ERROR_INSUFFICIENT_SCOPE, 'The request requires higher privileges than provided by the access token.', $scope);
         }
 
@@ -739,8 +739,10 @@ class OAuth2
      *
      * @ingroup oauth2_section_7
      */
-    protected function checkScope($requiredScope, $availableScope)
+    protected function checkScope($requiredScope)
     {
+        $availableScope = $this->getVariable(self::CONFIG_SUPPORTED_SCOPES);
+
         // The required scope should match or be a subset of the available scope
         if (!is_array($requiredScope)) {
             $requiredScope = explode(' ', trim($requiredScope));
@@ -867,7 +869,7 @@ class OAuth2
 
         // if no scope provided to check against $input['scope'] then application defaults are set
         // if no data is provided than null is set
-        $stored += array('scope' => $this->getVariable(self::CONFIG_SUPPORTED_SCOPES, null), 'data' => null,
+        $stored += array('scope' => $input['scope'] ?? null /*$this->getVariable(self::CONFIG_SUPPORTED_SCOPES, null)*/, 'data' => null,
                          'access_token_lifetime' => $this->getVariable(self::CONFIG_ACCESS_LIFETIME),
                          'issue_refresh_token' => true, 'refresh_token_lifetime' => $this->getVariable(self::CONFIG_REFRESH_LIFETIME));
 
@@ -1164,7 +1166,7 @@ class OAuth2
         }
 
         // Validate that the requested scope is supported
-        if ($input["scope"] && !$this->checkScope($input["scope"], $this->getVariable(self::CONFIG_SUPPORTED_SCOPES))) {
+        if ($input["scope"] && !$this->checkScope($input["scope"])) {
             throw new OAuth2RedirectException($input["redirect_uri"], self::ERROR_INVALID_SCOPE, 'An unsupported scope was requested.', $input["state"]);
         }
 
